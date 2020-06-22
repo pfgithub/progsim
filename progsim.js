@@ -54,8 +54,10 @@ body > * {
 	position: absolute;
 	z-index: 0;
 }
-.codeline {}
+.codeline { white-space: pre-wrap; }
 .codeline.todo { background-color: #faa; }
+.codeline.next { background-color: #ffa; }
+.codeline.executing { background-color: #aaf; }
 .lineno {
 	font-family: monospace;
 	color: darkgray;
@@ -111,12 +113,6 @@ body > * {
 }
 .regdisp.viewed {
 	background-color: #afa;
-}
-.codeline {
-	white-space: pre-wrap;
-}
-.codeline.next {
-	background-color: #ffa;
 }
 .label { font-weight: bold; }
 .instr { color: blue; }
@@ -227,6 +223,7 @@ function AsmRunnerView(parent, props) {
 		let split = line.split(" ");
 		let sp0 = split.shift();
 		colr("instr", sp0 + " ").adto(liel).attr({title: docs[sp0] || "no documentation"});
+		// it might be possible to automate this mostly
 		if(sp0 === "add") {
 			let [out, , one, , two] = split;
 			lines.push({liel, action: "add", out, one, two});
@@ -247,6 +244,10 @@ function AsmRunnerView(parent, props) {
 			let [out, , low, , high] = split;
 			lines.push({liel, action: "random", out, low, high});
 			liel.adch(qcol(split, "reg", "", "reg", "", "reg"));
+		}else if(sp0 === "sleep") {
+			let [duration] = split;
+			lines.push({liel, action: "sleep", duration});
+			liel.adch(qcol(split, "reg"));
 		}else{
 			liel.classList.add("todo");
 			colr("", split.join(" ")).adto(liel);
@@ -254,8 +255,10 @@ function AsmRunnerView(parent, props) {
 		}
 	}
 	
-	let runInstruction = (data) => {
+	// zig would make it possible for there to be an arg that forces this to be noasync
+	let runInstructionInternal = async data => {
 		let instr = data.lines[data.registers.ip];
+		data.registers.ip += 1;
 		
 		let viewedRegisters = [];
 		let setRegisters = [];
@@ -264,8 +267,6 @@ function AsmRunnerView(parent, props) {
 		let setReg = (reg, v) => {let sr1 = reg.substr(1); setRegisters.push(sr1); data.registers[sr1] = v;};
 		
 		if(!data.lines[data.registers.ip + 1]) return {viewedRegisters, setRegisters};
-		data.simCount.count += 1;
-		setReg("$ip", getReg("$ip") + 1);
 		
 		if(instr.action === "nop") {
 			
@@ -278,11 +279,19 @@ function AsmRunnerView(parent, props) {
 		}else if(instr.action === "random") {
 			let high = getReg(instr.high);
 			let low = getReg(instr.low);
-			setReg(instr.out, data.fetches.random(low, high));
+			setReg(instr.out, data.fetches.memo("random", () =>
+				Math.floor(Math.random() * (high - low)) + low
+			));
 		}else if(instr.action === "add") {
 			setReg(instr.out, getReg(instr.one) + getReg(instr.two));
 		}else if(instr.action === "input") {
-			let v = data.fetches.input();
+			let v = data.fetches.memo("input", () => {
+				let res;
+				do {
+					res = +prompt("");
+				} while (isNaN(res))
+				return res;
+			});
 			setReg(instr.reg, v);
 		}else if(instr.action === "goto") {
 			let mark = instr.mark.substr(1);
@@ -291,10 +300,26 @@ function AsmRunnerView(parent, props) {
 			}
 			let jumpPoint = jumpPoints[mark];
 			setReg("$ip", jumpPoint);
+		}else if(instr.action === "sleep") {
+			let duration = getReg(instr.duration);
+			await data.fetches.fetch("sleep", () => new Promise(r => setTimeout(r, duration * 1000)));
 		}else throw new Error("Unsupported "+instr.action);
 		
 		return {viewedRegisters, setRegisters};
 	}
+	
+	let runInstruction = async data => {
+		data.simCount.count += 1;
+		try {
+			return await runInstructionInternal(data);
+		}catch(e) {
+			if(e === "INSTRUCTION CANCELLED") {
+				data.simCount.count -= 1;
+				throw e;
+			}
+			else {console.log(e); alert("Error! "+e);}
+		}
+	};
 	
 	let initSimulation = (fetches) => {
 		let registers = {...defaultRegisters};
@@ -305,8 +330,31 @@ function AsmRunnerView(parent, props) {
 	let mkFetches = () => {
 		let current = 0;
 		let saved = [];
+		let stopAction = () => {};
 		let fetches = {
-			fetch(mode, fallback) {
+			stop() {
+				stopAction();
+			},
+			async fetch(mode, fallback) {
+				let c = current;
+				current += 1;
+				if(saved[c]) {
+					if(saved[c].mode !== mode) throw new Error("impurity");
+					return saved[c].data;
+				}else{
+					let didStop = false;
+					let tsa = () => {
+						didStop = true;
+					};
+					stopAction = () => {tsa();}
+					let data = await fallback((stopAction) => tsa = stopAction);
+					stopAction = () => {};
+					if(didStop) throw "INSTRUCTION CANCELLED";
+					saved.push({mode, data});
+					return data;
+				}
+			},
+			memo(mode, fallback) {
 				let c = current;
 				current += 1;
 				if(saved[c]) {
@@ -317,20 +365,6 @@ function AsmRunnerView(parent, props) {
 					saved.push({mode, data});
 					return data;
 				}
-			},
-			input() {
-				return fetches.fetch("input", () => {
-					let res;
-					do {
-						res = +prompt("");
-					} while (isNaN(res))
-					return res;
-				})
-			},
-			random(low, high) {
-				return fetches.fetch("input", () => {
-					return Math.floor(Math.random() * (high - low)) + low;
-				})
 			},
 			trim() {
 				saved = saved.filter((_, i) => i < current);
@@ -347,11 +381,20 @@ function AsmRunnerView(parent, props) {
 	};
 	let fetches = mkFetches();
 	
+	let executing = undefined;
+	let onexec = [];
 	let unhl = (sim) => {
 		let instr = sim.lines[sim.registers.ip];
+		executing && executing.liel.classList.remove("executing");
+		executing = instr;
+		onexec.forEach(oe => oe());
 		instr.liel.classList.remove("next");
+		instr.liel.classList.add("executing");
 	};
 	let rehl = (sim, updReg = {viewedRegisters: [], setRegisters: []}) => {
+		executing && executing.liel.classList.remove("executing");
+		executing = undefined;
+		onexec.forEach(oe => oe());
 		let instr = sim.lines[sim.registers.ip];
 		instr.liel.classList.add("next");
 		
@@ -366,48 +409,59 @@ function AsmRunnerView(parent, props) {
 	
 	let sim = initSimulation(fetches);
 	rehl(sim);
-	let reset = e => {
+	let reset = async e => {
 		e.stopPropagation();
 		
 		unhl(sim);
+		if(executing) {
+			fetches.stop(); // stop = () => defer.cleanup()
+		}
 		fetches.clear();
 		sim = initSimulation(fetches);
 		rehl(sim);
 	};
-	let backup = e => {
+	let backup = async e => {
 		e.stopPropagation();
 		
 		unhl(sim);
+		if(executing) {
+			fetches.stop(); // stop = () => defer.cleanup()
+		}
 		let nsc = Math.max(sim.simCount.count - 1, 0);
 		fetches.reset();
 		sim = initSimulation(fetches);
 		let lst;
-		while(sim.simCount.count < nsc) lst = runInstruction(sim);
+		while(sim.simCount.count < nsc) lst = await runInstruction(sim);
 		fetches.trim();
 		rehl(sim, lst);
 	};
-	let advance = e => {
+	let advance = async e => {
+		if(executing) return;
 		e.stopPropagation();
 		
 		unhl(sim);
-		let updReg = runInstruction(sim);
+		let updReg = await runInstruction(sim);
 		rehl(sim, updReg);
 	};
-	let play = e => {
+	let play = fast => async e => {
+		if(executing) return;
 		e.stopPropagation();
 		
-		unhl(sim);
 		let luReg;
 		while(sim.registers.ip < lines.length - 1) {
-			luReg = runInstruction(sim);
+			unhl(sim);
+			luReg = await runInstruction(sim);
+			rehl(sim, luReg);
 			if(breakpoints["" + sim.registers.ip]) break;
+			if(!fast) await new Promise(r => setTimeout(r, 10));
 		}
-		rehl(sim, luReg);
 	}
-	el("button").atxt("|<").adto(buttonArea).onev("click", reset);
+	let disabledOnExec = btn => onexec.push(() => btn.disabled = !!executing);
+	el("button").atxt("restart").adto(buttonArea).onev("click", reset);
 	el("button").atxt("<-").adto(buttonArea).onev("click", backup);
-	el("button").atxt("->").adto(buttonArea).onev("click", advance);
-	el("button").atxt(">|").adto(buttonArea).onev("click", play);
+	el("button").atxt("->").adto(buttonArea).onev("click", advance).dwth(disabledOnExec);
+	el("button").atxt("run").adto(buttonArea).onev("click", play(false)).dwth(disabledOnExec);
+	el("button").atxt("run (fast)").adto(buttonArea).onev("click", play(true)).dwth(disabledOnExec);
 	
 	let kdevl = k => {
 		if(k.code === "ArrowRight") advance(k);
