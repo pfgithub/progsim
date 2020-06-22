@@ -278,18 +278,12 @@ function AsmRunnerView(parent, props) {
 		}else if(instr.action === "random") {
 			let high = getReg(instr.high);
 			let low = getReg(instr.low);
-			setReg(instr.out, Math.floor(Math.random() * (high - low)) + low);
+			setReg(instr.out, data.fetches.random(low, high));
 		}else if(instr.action === "add") {
 			setReg(instr.out, getReg(instr.one) + getReg(instr.two));
 		}else if(instr.action === "input") {
-			if(data.inputs.current >= data.inputs.preset.length) {
-				let num = NaN;
-				while(isNaN(num)) num = prompt("");
-				data.inputs.preset.push(num);
-			}
-			let v = +data.inputs.preset[data.inputs.current];
+			let v = data.fetches.input();
 			setReg(instr.reg, v);
-			data.inputs.current += 1;
 		}else if(instr.action === "goto") {
 			let mark = instr.mark.substr(1);
 			if(!(mark in jumpPoints)) {
@@ -302,12 +296,56 @@ function AsmRunnerView(parent, props) {
 		return {viewedRegisters, setRegisters};
 	}
 	
-	let initSimulation = (inputs) => {
+	let initSimulation = (fetches) => {
 		let registers = {...defaultRegisters};
 		let simCount = {count: 0};
-		return {inputs, registers, lines, simCount};
+		return {fetches, registers, lines, simCount};
 	}
-	let inputs = {current: 0, preset: []};
+	
+	let mkFetches = () => {
+		let current = 0;
+		let saved = [];
+		let fetches = {
+			fetch(mode, fallback) {
+				let c = current;
+				current += 1;
+				if(saved[c]) {
+					if(saved[c].mode !== mode) throw new Error("impurity");
+					return saved[c].data;
+				}else{
+					let data = fallback();
+					saved.push({mode, data});
+					return data;
+				}
+			},
+			input() {
+				return fetches.fetch("input", () => {
+					let res;
+					do {
+						res = +prompt("");
+					} while (isNaN(res))
+					return res;
+				})
+			},
+			random(low, high) {
+				return fetches.fetch("input", () => {
+					return Math.floor(Math.random() * (high - low)) + low;
+				})
+			},
+			trim() {
+				saved = saved.filter((_, i) => i < current);
+			},
+			reset() {
+				current = 0;
+			},
+			clear() {
+				fetches.reset();
+				fetches.trim();
+			},
+		};
+		return fetches;
+	};
+	let fetches = mkFetches();
 	
 	let unhl = (sim) => {
 		let instr = sim.lines[sim.registers.ip];
@@ -326,14 +364,14 @@ function AsmRunnerView(parent, props) {
 		}
 	}
 	
-	let sim = initSimulation(inputs);
+	let sim = initSimulation(fetches);
 	rehl(sim);
 	let reset = e => {
 		e.stopPropagation();
 		
 		unhl(sim);
-		inputs = {current: 0, preset: []};
-		sim = initSimulation(inputs);
+		fetches.clear();
+		sim = initSimulation(fetches);
 		rehl(sim);
 	};
 	let backup = e => {
@@ -341,10 +379,11 @@ function AsmRunnerView(parent, props) {
 		
 		unhl(sim);
 		let nsc = Math.max(sim.simCount.count - 1, 0);
-		inputs.current = 0;
-		sim = initSimulation(inputs);
+		fetches.reset();
+		sim = initSimulation(fetches);
 		let lst;
 		while(sim.simCount.count < nsc) lst = runInstruction(sim);
+		fetches.trim();
 		rehl(sim, lst);
 	};
 	let advance = e => {
@@ -377,7 +416,7 @@ function AsmRunnerView(parent, props) {
 	document.addEventListener("keydown", kdevl);
 	defer(() => document.removeEventListener("keydown", kdevl));
 	
-	// runInstruction({inputs, registers, lines, simCount})
+	// runInstruction({fetches, registers, lines, simCount})
 	
 	return {remove() {
 		defer.cleanup();
