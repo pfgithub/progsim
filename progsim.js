@@ -38,16 +38,17 @@ textarea {
 .immediate { color: green; }
 `.trim();
 let defaultCode = `
-set $r0 = 5
-set $r1 = 6
-add $r2 = $r0 + $r1
+set $r0 ← 5
+set $r1 ← 6
+add $r2 ← $r0 + $r1
 
 
 goto :test
-set $r0 = 1
+set $r0 ← 1
+add $r0 ← $r0 + $r1
 test:
-set $r1 = 5
-add $r2 = $r0 + $r1
+set $r1 ← 15
+add $r2 ← $r0 + $r1
 `.trim();
 
 function makeDefer() {
@@ -83,7 +84,8 @@ let qcol = (split, ...itms) => {
 	return res;
 }
 
-let visibleRegs = ["r0", "r1", "r2", "r3"];
+let visibleRegs = ["r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7"];
+let defaultRegisters = {r0: 0, r1: 0, r2: 0, r3: 0, r4: 0, r5: 0, r6: 0, r7: 0, ip: 0, sp: 0, fl: 0, sc: 0};
 
 function AsmRunnerView(parent, props) {
 	let defer = makeDefer();
@@ -197,7 +199,7 @@ function AsmRunnerView(parent, props) {
 	}
 	
 	let initSimulation = (inputs) => {
-		let registers = {r0: 0, r1: 0, r2: 0, r3: 0, ip: 0, sp: 0, fl: 0, sc: 0};
+		let registers = {...defaultRegisters};
 		let simCount = {count: 0};
 		return {inputs, registers, lines, simCount};
 	}
