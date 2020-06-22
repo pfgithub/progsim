@@ -120,11 +120,30 @@ body > * {
 .immediate { color: green; }
 `.trim();
 let defaultCode = `
-set $r0 ← 5
-set $r1 ← 6
-add $r2 ← $r0 + $r1
+set $r0 <- 5
+set $r1 <- 6
+add $r2 <- $r0 + $r1
 
-# todo fill this out
+goto :test
+set $r0 <- 1
+add $r0 <- $r0 + $r1
+test:
+set $r1 <- 15
+add $r2 <- $r0 + $r1
+
+
+set $r0 <- 2
+sleep $r0
+
+
+# guess the number game
+
+set $r1 <- 1
+set $r2 <- 100
+random $r0 <- $r1 to $r2
+
+
+input $r1
 `.trim();
 
 let docs = {
