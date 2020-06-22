@@ -54,6 +54,35 @@ body > * {
 	position: absolute;
 	z-index: 0;
 }
+.codeline {}
+.codeline.todo { background-color: #faa; }
+.lineno {
+	font-family: monospace;
+	color: darkgray;
+	border: 0;
+	background-color: transparent;
+	margin: 0;
+	margin-left: 0;
+	padding: 0;
+	padding-right: 11px;
+	display: inline-block;
+	height: 1.7em;
+	cursor: pointer;
+}
+.lineno.breakpoint {
+	color: black;
+	font-weight: bold;
+	background-color: rgba(0, 0, 0, 0.2);
+}
+.lineno:focus {
+	outline: none;
+}
+.lineno::-moz-focus-inner {
+	border: 0;
+}
+.lineno:hover > .number, .lineno:focus > .number {
+	text-decoration: underline;
+}
 .tab {
 	z-index: 1;
 	border: 1px solid #000;
@@ -74,6 +103,9 @@ body > * {
 	background-color: #fff;
 }
 .comment { color: #212830; font-style: italic; }
+.regdisp {
+	white-space: pre;
+}
 .regdisp.edited {
 	background-color: #acf;
 }
@@ -81,7 +113,7 @@ body > * {
 	background-color: #afa;
 }
 .codeline {
-	white-space: pre;
+	white-space: pre-wrap;
 }
 .codeline.next {
 	background-color: #ffa;
@@ -89,7 +121,6 @@ body > * {
 .label { font-weight: bold; }
 .instr { color: blue; }
 .reg { color: red; }
-.todo { background-color: #faa; }
 .immediate { color: green; }
 `.trim();
 let defaultCode = `
@@ -166,10 +197,20 @@ function AsmRunnerView(parent, props) {
 	
 	let buttonArea = el("div").adto(container);
 	
+	let breakpoints = {};
+	
 	let codeContainer = el("div").adto(container);
 	lines.push({liel: el("div"), action: "nop"});
 	for(let line of [...props.text.text.split("\n"), ""]) {
-		let liel = el("div").adto(codeContainer).attr({class: "codeline"});
+		let liel = el("div").adto(codeContainer).clss(".codeline");
+		let lineno = lines.length;
+		let [lnoSpaces, lnoNum] = lineno.toString().padStart(5, " ").split(/ (?=[^ ])/);
+		let linenoBtn = el("button").clss(".lineno").atxt(lnoSpaces).adch(el("span").atxt(lnoNum).clss(".number")).adto(liel)
+		.onev("click", () => {
+			breakpoints["" + lineno] = !breakpoints["" + lineno];
+			let isbp = breakpoints["" + lineno];
+			linenoBtn.classList.toggle("breakpoint", isbp);
+		});
 		if(!line.trim()) {
 			lines.push({liel, action: "nop"});
 			liel.atxt(" "); continue;
@@ -180,7 +221,7 @@ function AsmRunnerView(parent, props) {
 			lines.push({liel, action: "nop"});
 			colr("label", line).adto(liel);
 			let name = line.substr(0, line.length - 1);
-			jumpPoints[name] = lines.length - 1; 
+			jumpPoints[name] = lineno; 
 			continue;
 		}
 		let split = line.split(" ");
@@ -209,6 +250,7 @@ function AsmRunnerView(parent, props) {
 		}else{
 			liel.classList.add("todo");
 			colr("", split.join(" ")).adto(liel);
+			linenoBtn.remove();
 		}
 	}
 	
@@ -277,12 +319,10 @@ function AsmRunnerView(parent, props) {
 		
 		for(let regName of visibleRegs) {
 			let rgdisp = regsDisplay[regName];
-			let ntxt = "" + sim.registers[regName];
+			let ntxt = sim.registers[regName].toString().padStart(3, " ");
 			rgdisp.text.nodeValue = ntxt;
-			rgdisp.reg.classList.remove("viewed");
-			rgdisp.reg.classList.remove("edited");
-			if(updReg.viewedRegisters.includes(regName)) rgdisp.reg.classList.add("viewed");
-			if(updReg.setRegisters.includes(regName)) rgdisp.reg.classList.add("edited");
+			rgdisp.reg.classList.toggle("viewed", updReg.viewedRegisters.includes(regName));
+			rgdisp.reg.classList.toggle("edited", updReg.setRegisters.includes(regName));
 		}
 	}
 	
@@ -319,7 +359,10 @@ function AsmRunnerView(parent, props) {
 		
 		unhl(sim);
 		let luReg;
-		while(sim.registers.ip < lines.length - 1) luReg = runInstruction(sim);
+		while(sim.registers.ip < lines.length - 1) {
+			luReg = runInstruction(sim);
+			if(breakpoints["" + sim.registers.ip]) break;
+		}
 		rehl(sim, luReg);
 	}
 	el("button").atxt("|<").adto(buttonArea).onev("click", reset);
