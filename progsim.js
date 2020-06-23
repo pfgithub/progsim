@@ -25,6 +25,11 @@ html, body {
   display: flex;
   flex-direction: column;
 }
+h3 {
+	font-family: sans-serif;
+	margin-top: 25px;
+	margin-bottom: 10px;
+}
 .hidden {display: none;}
 body > * {
 	flex-shrink: 0;
@@ -48,6 +53,25 @@ input {
 	position: sticky;
 	top: 0;
 	background-color: white;
+}
+.codeline {
+	padding-right: 25px;
+}
+.documentation {
+	margin: 20px;
+	margin-top: 0;
+}
+.ilasmrun .code {
+	margin: 10px;
+	padding-top: 10px;
+	padding-bottom: 10px;
+	background-color: #eee;
+	border-radius: 10px;
+	width: max-content;
+}
+.ilasmrun .executioninfo {
+	border-bottom: 0;
+	position: static;
 }
 .executioninfo {
 	position: sticky;
@@ -120,16 +144,14 @@ input {
 .regdisp {
 	white-space: pre;
 }
-.regdisp.edited {
-	background-color: #acf;
-}
-.regdisp.viewed {
-	background-color: #afa;
-}
-.label { font-weight: bold; }
-.instr { color: blue; }
-.reg { color: red; }
-.immediate { color: green; }
+.regdisp.viewed { background-color: #afa; }
+.regdisp.edited { background-color: #acf; }
+.regdisp.viewed.edited { background: linear-gradient(to top, #afa, #acf); }
+.hlitem.label { font-weight: bold; }
+.hlitem.instr { color: blue; }
+.hlitem.reg { color: red; }
+.hlitem.immediate { color: green; }
+.hlitem.error { color: red; font-style: italic; }
 `.trim();
 let defaultCode = `
 set $r0 <- 5
@@ -159,10 +181,73 @@ input $r1
 `.trim();
 
 let docs = {
-	"set": "eg: set $r0 ← 5. sets the value in the register $r0 to 5.",
-	"add": "eg: add $r0 ← $r1 + $r2. sets the value in the register $r0 to $r1 plus $r2.",
-	"goto": "eg: goto :label. after this, instruction, start running instructions at :label instead of the next instruction.",
+	set: {
+		title: "set $reg ← #. sets the value in the register $reg to #.",
+		example: `set $r0 <- 5\n# $r0 is now 5`,
+		hl: ["reg", "", "immediate"],
+		names: ["reg", "", "val"],
+	},
+	add: {
+		title: "add $out ← $one + $two. sets the value in the register $out to $one plus $two.",
+		example: `set $r0 <- 2\nset $r1 <- 4\nadd $r0 <- $r1 + $r0\n# $r0 is now 6`,
+		hl: ["reg", "", "reg", "", "reg"],
+		names: ["out", "", "one", "", "two"],
+	},
+	goto: {
+		title: "goto :label. after this instruction, instead of running the next instruction, continue at :label",
+		example: `set $r0 <- 5\ngoto :skip\nset $r0 <- 10\nskip:\n# $r0 is still 5`,
+		hl: ["label"],
+		names: ["mark"],
+	},
+	random: {
+		title: "random $out ← $low to $high. set $out to a random number from $low to $high.",
+		example: `set $r0 <- 5\nset $r1 <- 10\nrandom $r2 <- $r0 to $r1\n# $r2 is now a random number from 5 to 10`,
+		hl: ["reg", "", "reg", "", "reg"],
+		names: ["out", "", "low", "", "high"],
+	},
+	sleep: {
+		title: "sleep $time. wait $time miliseconds before continuing to the next instruction. 1000ms = 1 sec",
+		example: `set $r0 <- 1000\nsleep $r0\n# 1 second later...`,
+		hl: ["reg"],
+		names: ["duration"],
+	},
+	if: {
+		title: "if $left <=> $right goto :label. if the condition is met, instead of continuing to the next instruction, continue at :label",
+		example: `set $r0 <- 12\ninput $r1\nif $r1 > $r0 goto :nope\nalert "your number is <= 12"\nnope:`,
+		hl: ["reg", "", "reg", "instr", "label"],
+		names: ["condl", "cond", "condr", "", "label"],
+	},
+	input: {
+		title: "input $out. asks the user for a number, and sets $out to the number.",
+		example: `input $r0\n# $r0 now contains the number you typed`,
+		hl: ["reg"],
+		names: ["reg"],
+	},
 };
+
+/// does not handle syntax errors (usually)
+/// syntax errors will have italic red text at the
+/// end stating the error
+function parseAndSyntxHl(line) {
+	let respan = el("span");
+	
+	if(!line.trim()) {
+		return respan.atxt("          ");
+	} else if(line.endsWith(":")) {
+		return respan.adch(colr("label", line));
+	} else if(line.startsWith("#")) {
+		return respan.adch(colr("comment", line));
+	}
+	
+	let lsplit = line.split(" ");
+	let instr = lsplit.shift();
+	let doc = docs[instr];
+	if(!doc) {
+		return respan.atxt(line);
+	}
+	
+	return respan.adch(colr("instr", instr).attr({title: doc.title})).atxt(" ").adch(qcol(lsplit, ...doc.hl));
+}
 
 function makeDefer() {
 	let list = [];
@@ -188,7 +273,7 @@ function CodeEditorView(parent, props) {
 	}};
 }
 
-let colr = (color, txt) => el("span").attr({class: color}).atxt(txt.replace(/<-/g, "←"));
+let colr = (color, txt) => el("span").attr({class: "hlitem "+color}).atxt(txt.replace(/<-/g, "←"));
 let qcol = (split, ...itms) => {
 	let res = document.createDocumentFragment();
 	split.forEach((txt, i) => {
@@ -228,9 +313,9 @@ function AsmRunnerView(parent, props) {
 	
 	let breakpoints = {};
 	
-	let codeContainer = el("div").adto(container);
+	let codeContainer = el("div").clss("code").adto(container);
 	lines.push({liel: el("div"), action: "nop"});
-	[...props.text.text.split("\n"), ""].forEach((line, i) => {
+	[...props.text.text.split("\n")].forEach((line, i) => {
 		let liel = el("div").adto(codeContainer).clss(".codeline");
 		let lineno = lines.length;
 		let [lnoSpaces, lnoNum] = lineno.toString().padStart(5, " ").split(/ (?=[^ ])/);
@@ -276,71 +361,50 @@ function AsmRunnerView(parent, props) {
 					if(k.code === "Enter") {k.preventDefault(); k.stopPropagation(); save();}
 				});
 		});
+		parseAndSyntxHl(line).adto(ltxt);
 		if(!line.trim()) {
-			lines.push({liel, action: "nop"});
-			ltxt.atxt(" "); return;
+			lines.push({liel, action: "nop"}); return;
 		}else if(line.startsWith("#")) {
-			lines.push({liel, action: "nop"});
-			colr("comment", line).adto(ltxt); return;
+			lines.push({liel, action: "nop"}); return;
 		}else if(line.endsWith(":")) {
 			lines.push({liel, action: "nop"});
-			colr("label", line).adto(ltxt);
 			let name = line.substr(0, line.length - 1);
-			jumpPoints[name] = lineno; 
+			jumpPoints[name] = lineno;
 			return;
 		}
 		let split = line.split(" ");
 		let sp0 = split.shift();
-		colr("instr", sp0 + " ").adto(ltxt).attr({title: docs[sp0] || "no documentation"});
-		// it might be possible to automate this mostly
-		if(sp0 === "add") {
-			let [out, , one, , two] = split;
-			lines.push({liel, action: "add", out, one, two});
-			ltxt.adch(qcol(split, "reg", "", "reg", "", "reg"));
-		}else if(sp0 === "set") {
-			let [reg, , val] = split;
-			lines.push({liel, action: "set", reg, val});
-			ltxt.adch(qcol(split, "reg", "", val.startsWith("$") ? "reg" : "immediate"))
-		}else if(sp0 === "input") {
-			let [reg] = split;
-			lines.push({liel, action: "input", reg});
-			ltxt.adch(qcol(split, "reg"));
-		}else if(sp0 === "goto") {
-			let [mark] = split;
-			lines.push({liel, action: "goto", mark});
-			ltxt.adch(qcol(split, "label"));
-		}else if(sp0 === "random") {
-			let [out, , low, , high] = split;
-			lines.push({liel, action: "random", out, low, high});
-			ltxt.adch(qcol(split, "reg", "", "reg", "", "reg"));
-		}else if(sp0 === "sleep") {
-			let [duration] = split;
-			lines.push({liel, action: "sleep", duration});
-			ltxt.adch(qcol(split, "reg"));
-		}else if(sp0 === "if") {
-			// if $r0 < $r1 goto :label
-			let [condl, cond, condr, , label] = split;
-			lines.push({liel, action: "if", condl, cond, condr, label});
-			ltxt.adch(qcol(split, "reg", "", "reg", "instr", "label"));
-		}else{
-			liel.classList.add("todo");
-			colr("", split.join(" ")).adto(ltxt);
-			noline();
+		let doc = docs[sp0];
+		if(!doc) {
+			ltxt.adch(colr("error", " Error: Instruction "));
+			ltxt.adch(colr("instr", sp0));
+			ltxt.adch(colr("error", " not found. Check the instructions tab for a list of instructions."));
+			return noline();
 		}
+		let res = {};
+		doc.names.forEach((name, i) => {
+			res[name] = split[i];
+		});
+		if(split.length !== doc.names.length) {
+			ltxt.adch(colr("error", " Error: Instruction "));
+			ltxt.adch(colr("instr", sp0));
+			ltxt.adch(colr("error", " has the wrong number of arguments. Check the instructions tab for examples."));
+			return noline();
+		}
+		lines.push({liel, action: sp0, ...res});
 	});
+	lines.push({liel: el("div"), action: "nop"});
 	
 	// zig would make it possible for there to be an arg that forces this to be noasync
 	let runInstructionInternal = async data => {
 		let instr = data.lines[data.registers.ip];
+		data.registers.ip += 1;
 		
 		let viewedRegisters = [];
 		let setRegisters = [];
 		
 		let getReg = (reg) => {let sr1 = reg.substr(1); viewedRegisters.push(sr1); return data.registers[sr1];};
 		let setReg = (reg, v) => {let sr1 = reg.substr(1); setRegisters.push(sr1); data.registers[sr1] = v;};
-		
-		if(!data.lines[data.registers.ip + 1]) return {viewedRegisters, setRegisters};
-		data.registers.ip += 1;
 		
 		if(instr.action === "nop") {
 			
@@ -377,7 +441,7 @@ function AsmRunnerView(parent, props) {
 			}
 		}else if(instr.action === "sleep") {
 			let duration = getReg(instr.duration);
-			await data.fetches.fetch("sleep", () => new Promise(r => setTimeout(r, duration * 1000)));
+			await data.fetches.fetch("sleep", () => new Promise(r => setTimeout(r, duration)));
 		}else if(instr.action === "if") {
 			let condl = getReg(instr.condl);
 			let condr = getReg(instr.condr);
@@ -408,7 +472,10 @@ function AsmRunnerView(parent, props) {
 	}
 	
 	let runInstruction = async data => {
+		if(!data.lines[data.registers.ip + 1]) return;
+		let instr = data.lines[data.registers.ip];
 		data.simCount.count += 1;
+		
 		try {
 			return await runInstructionInternal(data);
 		}catch(e) {
@@ -600,6 +667,30 @@ function AsmRunnerView(parent, props) {
 	}};
 }
 
+function DocumentationView(parent, props) {
+	let defer = makeDefer();
+	let container = el("div").adto(parent).clss("documentation").drmv(defer);
+	defer(() => container.remove());
+	
+	for(let [name, doc] of Object.entries(docs)) {
+		el("h3").atxt(name).adto(container);
+		el("p").atxt(doc.title).adto(container);
+		let egarea = el("div").adto(container);
+		
+		if(doc.example) {
+			let text = {text: doc.example};
+			let mkarv = () => AsmRunnerView(el("div").clss("ilasmrun")
+				.adto(egarea), {text, run: () => {asmRunner.remove(); asmRunner = mkarv();}});
+			let asmRunner = mkarv();
+			defer(() => asmRunner.remove());
+		}
+	}
+	
+	return {remove() {
+		defer.cleanup();
+	}};
+}
+
 function AppView(parent, props) {
 	let defer = makeDefer();
 	
@@ -620,7 +711,9 @@ function AppView(parent, props) {
 			cev = CodeEditorView(parent, {text, run});
 		}else if(name === "asm") {
 			cev = AsmRunnerView(parent, {text, run});
-		}else if(name === "instructions") {}
+		}else if(name === "docs") {
+			cev = DocumentationView(parent, {text, run});
+		}
 		localStorage.setItem("tab", active);
 	}
 	
