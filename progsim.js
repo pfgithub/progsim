@@ -25,7 +25,7 @@ html, body {
   display: flex;
   flex-direction: column;
 }
-
+.hidden {display: none;}
 body > * {
 	flex-shrink: 0;
 }
@@ -216,7 +216,7 @@ function AsmRunnerView(parent, props) {
 	
 	let codeContainer = el("div").adto(container);
 	lines.push({liel: el("div"), action: "nop"});
-	for(let line of [...props.text.text.split("\n"), ""]) {
+	[...props.text.text.split("\n"), ""].forEach((line, i) => {
 		let liel = el("div").adto(codeContainer).clss(".codeline");
 		let lineno = lines.length;
 		let [lnoSpaces, lnoNum] = lineno.toString().padStart(5, " ").split(/ (?=[^ ])/);
@@ -234,53 +234,75 @@ function AsmRunnerView(parent, props) {
 			linenoBtn.atxt(" ".repeat(lnoNum.length));
 			isLine = false;
 		}
+		let ltxt = el("span").adto(liel);
+		let linp = el("span").adto(liel);
+		ltxt.onev("dblclick", e => {
+			ltxt.classList.add("hidden");
+			let save = () => {
+				// ltxt.classList.remove("hidden");
+				// input.remove();
+				let lsplits = props.text.text.split("\n");
+				if(i > lsplits.length - 1) lsplits.push("");
+				lsplits[i] = input.value;
+				props.text.text = lsplits.join("\n");
+				props.run("asm");
+			};
+			let input = el("input").adto(linp)
+				.dwth(v => v.value = line)
+				.dwth(v => v.focus())
+				.dwth(v => v.select())
+				.onev("blur", save)
+				.onev("keydown", k => {
+					if(k.code === "Enter") {k.preventDefault(); k.stopPropagation(); save();}
+				});
+		});
 		if(!line.trim()) {
 			lines.push({liel, action: "nop"});
-			liel.atxt(" "); continue;
+			ltxt.atxt(" "); return;
 		}else if(line.startsWith("#")) {
 			lines.push({liel, action: "nop"});
-			colr("comment", line).adto(liel); continue;
+			colr("comment", line).adto(ltxt); return;
 		}else if(line.endsWith(":")) {
 			lines.push({liel, action: "nop"});
-			colr("label", line).adto(liel);
+			colr("label", line).adto(ltxt);
 			let name = line.substr(0, line.length - 1);
 			jumpPoints[name] = lineno; 
-			continue;
+			return;
 		}
 		let split = line.split(" ");
 		let sp0 = split.shift();
-		colr("instr", sp0 + " ").adto(liel).attr({title: docs[sp0] || "no documentation"});
+		colr("instr", sp0 + " ").adto(ltxt).attr({title: docs[sp0] || "no documentation"});
 		// it might be possible to automate this mostly
 		if(sp0 === "add") {
 			let [out, , one, , two] = split;
 			lines.push({liel, action: "add", out, one, two});
-			liel.adch(qcol(split, "reg", "", "reg", "", "reg"));
+			ltxt.adch(qcol(split, "reg", "", "reg", "", "reg"));
 		}else if(sp0 === "set") {
 			let [reg, , val] = split;
 			lines.push({liel, action: "set", reg, val});
-			liel.adch(qcol(split, "reg", "", val.startsWith("$") ? "reg" : "immediate"))
+			ltxt.adch(qcol(split, "reg", "", val.startsWith("$") ? "reg" : "immediate"))
 		}else if(sp0 === "input") {
 			let [reg] = split;
 			lines.push({liel, action: "input", reg});
-			liel.adch(qcol(split, "reg"));
+			ltxt.adch(qcol(split, "reg"));
 		}else if(sp0 === "goto") {
 			let [mark] = split;
 			lines.push({liel, action: "goto", mark});
-			liel.adch(qcol(split, "label"));
+			ltxt.adch(qcol(split, "label"));
 		}else if(sp0 === "random") {
 			let [out, , low, , high] = split;
 			lines.push({liel, action: "random", out, low, high});
-			liel.adch(qcol(split, "reg", "", "reg", "", "reg"));
+			ltxt.adch(qcol(split, "reg", "", "reg", "", "reg"));
 		}else if(sp0 === "sleep") {
 			let [duration] = split;
 			lines.push({liel, action: "sleep", duration});
-			liel.adch(qcol(split, "reg"));
+			ltxt.adch(qcol(split, "reg"));
 		}else{
 			liel.classList.add("todo");
-			colr("", split.join(" ")).adto(liel);
+			colr("", split.join(" ")).adto(ltxt);
 			noline();
 		}
-	}
+	});
 	
 	// zig would make it possible for there to be an arg that forces this to be noasync
 	let runInstructionInternal = async data => {
@@ -527,6 +549,7 @@ function AppView(parent, props) {
 	let btns = {};
 	let active = "";
 	let run = (name) => {
+		localStorage.setItem("code", text.text);
 		cev && cev.remove();
 		btns[active] && btns[active].classList.remove("active");
 		active = name;
