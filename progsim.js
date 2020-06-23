@@ -45,7 +45,16 @@ input {
 	margin: 0;
 }
 .tablist {
-	position: relative;
+	position: sticky;
+	top: 0;
+	background-color: white;
+}
+.executioninfo {
+	position: sticky;
+	top: 34px;
+	background-color: white;
+	padding: 3px;
+	border-bottom: 1px solid #000;
 }
 .tablist:after {
 	bottom: 0;
@@ -201,7 +210,9 @@ function AsmRunnerView(parent, props) {
 	
 	let lines = [];
 	
-	let regsArea = el("div").adto(container);
+	let executionInfo = el("div").clss("executioninfo").adto(container);
+	
+	let regsArea = el("div").clss("registers").adto(executionInfo);
 	let regsDisplay = {};
 	visibleRegs.forEach((regNme, i) => {
 		if(i !== 0) regsArea.atxt(", ");
@@ -213,7 +224,7 @@ function AsmRunnerView(parent, props) {
 		regsDisplay[regNme] = {text: tn, reg: regEl};
 	});
 	
-	let buttonArea = el("div").adto(container);
+	let buttonArea = el("div").clss("buttons").adto(executionInfo);
 	
 	let breakpoints = {};
 	
