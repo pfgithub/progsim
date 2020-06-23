@@ -303,6 +303,11 @@ function AsmRunnerView(parent, props) {
 			let [duration] = split;
 			lines.push({liel, action: "sleep", duration});
 			ltxt.adch(qcol(split, "reg"));
+		}else if(sp0 === "if") {
+			// if $r0 < $r1 goto :label
+			let [condl, cond, condr, , label] = split;
+			lines.push({liel, action: "if", condl, cond, condr, label});
+			ltxt.adch(qcol(split, "reg", "", "reg", "instr", "label"));
 		}else{
 			liel.classList.add("todo");
 			colr("", split.join(" ")).adto(ltxt);
@@ -352,13 +357,38 @@ function AsmRunnerView(parent, props) {
 			let mark = instr.mark.substr(1);
 			if(!(mark in jumpPoints)) {
 				alert("No label :"+mark);
+			}else{
+				let jumpPoint = jumpPoints[mark];
+				setReg("$ip", jumpPoint);
 			}
-			let jumpPoint = jumpPoints[mark];
-			setReg("$ip", jumpPoint);
 		}else if(instr.action === "sleep") {
 			let duration = getReg(instr.duration);
 			await data.fetches.fetch("sleep", () => new Promise(r => setTimeout(r, duration * 1000)));
-		}else throw new Error("Unsupported "+instr.action);
+		}else if(instr.action === "if") {
+			let condl = getReg(instr.condl);
+			let condr = getReg(instr.condr);
+			let cond = {
+				["="]: (a, b) => a == b,
+				["=="]: (a, b) => a == b,
+				["≠"]: (a, b) => a != b,
+				["!="]: (a, b) => a != b,
+				["<"]: (a, b) => a < b,
+				["≤"]: (a, b) => a <= b,
+				["<="]: (a, b) => a <= b,
+				[">="]: (a, b) => a >= b,
+				["≥"]: (a, b) => a >= b,
+				[">"]: (a, b) => a > b,
+			}[instr.cond];
+			
+			let mark = instr.label.substr(1);
+			if(!cond) alert("Must be = < <= > >= !=")
+			else if(!(mark in jumpPoints)) {
+				alert("No label :"+mark);
+			}else if(cond(condl, condr)){
+				let jumpPoint = jumpPoints[mark];
+				setReg("$ip", jumpPoint);
+			}
+		}else alert("Unsupported "+instr.action);
 		
 		return {viewedRegisters, setRegisters};
 	}
