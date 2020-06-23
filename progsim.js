@@ -224,6 +224,18 @@ let docs = {
 		hl: ["reg"],
 		names: ["reg"],
 	},
+	save: {
+		title: "save $address $value. saves the value of $value to the address $address in ram.",
+		example: `set $r0 <- 1284\nset $r1 <- 562\nsave $r0 $r1\n# Now, when loading 1284, the number 562 will be there.`,
+		hl: ["reg", "reg"],
+		names: ["addr", "inv"],
+	},
+	load: {
+		title: "load $address $value. saves the value of $value to the address $address in ram.",
+		example: `set $r0 <- 1284\nset $r1 <- 562\nsave $r0 $r1\n# Now, when loading 1284, the number 562 will be there.`,
+		hl: ["reg", "reg"],
+		names: ["addr", "out"],
+	}
 };
 
 /// does not handle syntax errors (usually)
@@ -467,6 +479,13 @@ function AsmRunnerView(parent, props) {
 				let jumpPoint = jumpPoints[mark];
 				setReg("$ip", jumpPoint);
 			}
+		}else if(instr.action === "save") {
+			let addr = getReg(instr.addr);
+			let inv = getReg(instr.inv);
+			data.ram[addr] = inv;
+		}else if(instr.action === "load") {
+			let addr = getReg(instr.addr);
+			setReg(instr.out, data.ram[addr] || 0)
 		}else alert("Unsupported "+instr.action);
 		
 		return {viewedRegisters, setRegisters};
@@ -491,7 +510,7 @@ function AsmRunnerView(parent, props) {
 	let initSimulation = (fetches) => {
 		let registers = {...defaultRegisters};
 		let simCount = {count: 0};
-		return {fetches, registers, lines, simCount};
+		return {fetches, registers, lines, simCount, ram: []};
 	}
 	
 	let mkFetches = () => {
