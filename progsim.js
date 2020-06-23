@@ -458,6 +458,15 @@ function AsmRunnerView(parent, props) {
 	
 	let sim = initSimulation(fetches);
 	rehl(sim);
+	let stop = async e => {
+		e.stopPropagation();
+		
+		unhl(sim);
+		if(executing) {
+			fetches.stop(); // stop = () => defer.cleanup()
+		}
+		rehl(sim);
+	};
 	let reset = async e => {
 		e.stopPropagation();
 		
@@ -521,6 +530,7 @@ function AsmRunnerView(parent, props) {
 	el("button").atxt("restart").adto(buttonArea).onev("click", reset);
 	el("button").atxt("<-").adto(buttonArea).onev("click", backup);
 	el("button").atxt("->").adto(buttonArea).onev("click", advance).dwth(disabledOnExec);
+	el("button").atxt("pause").adto(buttonArea).onev("click", stop);
 	el("button").atxt("run").adto(buttonArea).onev("click", play(false)).dwth(disabledOnExec);
 	el("button").atxt("run (fast)").adto(buttonArea).onev("click", play(true)).dwth(disabledOnExec);
 	
