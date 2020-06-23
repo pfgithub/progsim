@@ -419,7 +419,7 @@ function AsmRunnerView(parent, props) {
 			let high = getReg(instr.high);
 			let low = getReg(instr.low);
 			setReg(instr.out, data.fetches.memo("random", () =>
-				Math.floor(Math.random() * (high - low)) + low
+				Math.floor(Math.random() * (high - low + 1)) + low
 			));
 		}else if(instr.action === "add") {
 			setReg(instr.out, getReg(instr.one) + getReg(instr.two));
