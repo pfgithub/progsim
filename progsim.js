@@ -314,6 +314,7 @@ function AsmRunnerView(parent, props) {
 			setReg(instr.reg, v);
 		}else if(instr.action === "goto") {
 			let mark = instr.mark.substr(1);
+			console.log("going to",mark);
 			if(!(mark in jumpPoints)) {
 				alert("No label :"+mark);
 			}
@@ -349,11 +350,11 @@ function AsmRunnerView(parent, props) {
 	let mkFetches = () => {
 		let current = 0;
 		let saved = [];
-		let stopAction = () => {};
 		let fetches = {
 			stop() {
-				stopAction();
+				fetches.stopAction();
 			},
+			stopAction: () => {},
 			async fetch(mode, fallback) {
 				let c = current;
 				current += 1;
@@ -365,9 +366,9 @@ function AsmRunnerView(parent, props) {
 					let tsa = () => {
 						didStop = true;
 					};
-					stopAction = () => {tsa();}
+					fetches.stopAction = () => {tsa();}
 					let data = await fallback((stopAction) => tsa = stopAction);
-					stopAction = () => {};
+					fetches.stopAction = () => {};
 					if(didStop) throw "INSTRUCTION CANCELLED";
 					saved.push({mode, data});
 					return data;
@@ -467,12 +468,22 @@ function AsmRunnerView(parent, props) {
 		e.stopPropagation();
 		
 		let luReg;
+		let lastDelay = new Date().getTime();
 		while(sim.registers.ip < lines.length - 1) {
+			let stopRequested = false;
 			unhl(sim);
+			fetches.stopAction = () => stopRequested = true;
 			luReg = await runInstruction(sim);
-			rehl(sim, luReg);
+			fetches.stopAction = () => stopRequested = true;
 			if(breakpoints["" + sim.registers.ip]) break;
-			if(!fast) await new Promise(r => setTimeout(r, 10));
+			let now = new Date().getTime();
+			if(!fast || now - lastDelay > 20) {
+				await new Promise(r => setTimeout(r, 10));
+				lastDelay = now;
+			}
+			fetches.stopAction = () => {};
+			if(stopRequested) break;
+			rehl(sim, luReg);
 		}
 	}
 	let disabledOnExec = btn => onexec.push(() => btn.disabled = !!executing);
