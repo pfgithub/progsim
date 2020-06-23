@@ -277,7 +277,6 @@ function AsmRunnerView(parent, props) {
 	// zig would make it possible for there to be an arg that forces this to be noasync
 	let runInstructionInternal = async data => {
 		let instr = data.lines[data.registers.ip];
-		data.registers.ip += 1;
 		
 		let viewedRegisters = [];
 		let setRegisters = [];
@@ -286,6 +285,7 @@ function AsmRunnerView(parent, props) {
 		let setReg = (reg, v) => {let sr1 = reg.substr(1); setRegisters.push(sr1); data.registers[sr1] = v;};
 		
 		if(!data.lines[data.registers.ip + 1]) return {viewedRegisters, setRegisters};
+		data.registers.ip += 1;
 		
 		if(instr.action === "nop") {
 			
@@ -314,7 +314,6 @@ function AsmRunnerView(parent, props) {
 			setReg(instr.reg, v);
 		}else if(instr.action === "goto") {
 			let mark = instr.mark.substr(1);
-			console.log("going to",mark);
 			if(!(mark in jumpPoints)) {
 				alert("No label :"+mark);
 			}
@@ -440,6 +439,8 @@ function AsmRunnerView(parent, props) {
 		sim = initSimulation(fetches);
 		rehl(sim);
 	};
+	// if we do add memory, this could be done by saving previous memory states (undos, not the full state)
+	// and previous register states and going back one instead of restarting from the beginning
 	let backup = async e => {
 		e.stopPropagation();
 		
@@ -475,15 +476,15 @@ function AsmRunnerView(parent, props) {
 			fetches.stopAction = () => stopRequested = true;
 			luReg = await runInstruction(sim);
 			fetches.stopAction = () => stopRequested = true;
-			if(breakpoints["" + sim.registers.ip]) break;
 			let now = new Date().getTime();
 			if(!fast || now - lastDelay > 20) {
-				await new Promise(r => setTimeout(r, 10));
+				await new Promise(r => window.requestAnimationFrame(r));
 				lastDelay = now;
 			}
 			fetches.stopAction = () => {};
-			if(stopRequested) break;
 			rehl(sim, luReg);
+			if(stopRequested) break;
+			if(breakpoints["" + sim.registers.ip]) break;
 		}
 	}
 	let disabledOnExec = btn => onexec.push(() => btn.disabled = !!executing);
