@@ -29,6 +29,9 @@ html, body {
 body > * {
 	flex-shrink: 0;
 }
+input {
+	border: 0;
+}
 .codetab {
 	flex-grow: 1;
 }
