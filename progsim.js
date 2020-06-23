@@ -223,12 +223,17 @@ function AsmRunnerView(parent, props) {
 		let lnoNumSpan = el("span").atxt(lnoNum).clss(".number");
 		let isLine = true;
 		let linenoBtn = el("button").clss(".lineno").atxt(lnoSpaces).adch(lnoNumSpan).adto(liel)
-		.onev("click", () => {
+		.onev("click", e => {
+			e.stopPropagation();
 			if(!isLine) return;
 			breakpoints["" + lineno] = !breakpoints["" + lineno];
 			let isbp = breakpoints["" + lineno];
 			linenoBtn.classList.toggle("breakpoint", isbp);
-		});
+		})
+		.onev("dblclick", e => {
+			e.stopPropagation();
+			play(true, lineno)(e);
+		}, true);
 		let noline = () => {
 			lnoNumSpan.remove();
 			linenoBtn.atxt(" ".repeat(lnoNum.length));
@@ -504,7 +509,7 @@ function AsmRunnerView(parent, props) {
 		let updReg = await runInstruction(sim);
 		rehl(sim, updReg);
 	};
-	let play = fast => async e => {
+	let play = (fast, stopOnlyAt = -1) => async e => {
 		if(executing) return;
 		e.stopPropagation();
 		
@@ -524,7 +529,9 @@ function AsmRunnerView(parent, props) {
 			fetches.stopAction = () => {};
 			rehl(sim, luReg);
 			if(stopRequested) break;
-			if(breakpoints["" + sim.registers.ip]) break;
+			if(stopOnlyAt === -1){
+				if(breakpoints["" + sim.registers.ip]) break;
+			}else if(sim.registers.ip === stopOnlyAt) break;
 		}
 	}
 	let disabledOnExec = btn => onexec.push(() => btn.disabled = !!executing);
