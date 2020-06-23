@@ -220,12 +220,20 @@ function AsmRunnerView(parent, props) {
 		let liel = el("div").adto(codeContainer).clss(".codeline");
 		let lineno = lines.length;
 		let [lnoSpaces, lnoNum] = lineno.toString().padStart(5, " ").split(/ (?=[^ ])/);
-		let linenoBtn = el("button").clss(".lineno").atxt(lnoSpaces).adch(el("span").atxt(lnoNum).clss(".number")).adto(liel)
+		let lnoNumSpan = el("span").atxt(lnoNum).clss(".number");
+		let isLine = true;
+		let linenoBtn = el("button").clss(".lineno").atxt(lnoSpaces).adch(lnoNumSpan).adto(liel)
 		.onev("click", () => {
+			if(!isLine) return;
 			breakpoints["" + lineno] = !breakpoints["" + lineno];
 			let isbp = breakpoints["" + lineno];
 			linenoBtn.classList.toggle("breakpoint", isbp);
 		});
+		let noline = () => {
+			lnoNumSpan.remove();
+			linenoBtn.atxt(" ".repeat(lnoNum.length));
+			isLine = false;
+		}
 		if(!line.trim()) {
 			lines.push({liel, action: "nop"});
 			liel.atxt(" "); continue;
@@ -270,7 +278,7 @@ function AsmRunnerView(parent, props) {
 		}else{
 			liel.classList.add("todo");
 			colr("", split.join(" ")).adto(liel);
-			linenoBtn.remove();
+			noline();
 		}
 	}
 	
