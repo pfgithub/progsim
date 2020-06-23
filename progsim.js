@@ -59,6 +59,7 @@ input {
 }
 .documentation {
 	margin: 20px;
+	padding-bottom: 20px;
 	margin-top: 0;
 }
 .ilasmrun .code {
@@ -189,7 +190,7 @@ let docs = {
 	},
 	add: {
 		title: "add $out ← $one + $two. sets the value in the register $out to $one plus $two.",
-		example: `set $r0 <- 2\nset $r1 <- 4\nadd $r0 <- $r1 + $r0\n# $r0 is now 6`,
+		example: `set $r0 <- 2\nset $r1 <- 4\nadd $r2 <- $r1 + $r0\n# $r2 is now 6`,
 		hl: ["reg", "", "reg", "", "reg"],
 		names: ["out", "", "one", "", "two"],
 	},
