@@ -253,6 +253,7 @@ function AsmRunnerView(parent, props) {
 				.dwth(v => v.select())
 				.onev("blur", save)
 				.onev("keydown", k => {
+					k.stopPropagation();
 					if(k.code === "Enter") {k.preventDefault(); k.stopPropagation(); save();}
 				});
 		});
