@@ -1,4 +1,4 @@
-{
+(() => {
 let el = (nme) => document.createElement(nme);
 let txt = (txt) => document.createTextNode(txt);
 let anychange = (itms, cb) => (itms.forEach(itm => itm.oninput = () => cb()), cb());
@@ -755,4 +755,4 @@ window.reset && window.reset();
 let mainEl = document.getElementById("main") || document.body;
 let apv = AppView(mainEl, {});
 window.reset = () => apv.remove();
-}
+})()
