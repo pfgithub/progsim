@@ -155,6 +155,32 @@ input {
 .hlitem.error { color: red; font-style: italic; }
 `.trim();
 let defaultCode = `
+set $r0 <- 1
+set $r1 <- 100
+random $r0 <- $r0 to $r1
+
+guess_the_number:
+
+input $r1
+
+if $r1 > $r0 goto :gt
+if $r1 < $r0 goto :lt
+goto :win
+
+gt:
+alert "My number is lower"
+goto :guess_the_number
+
+lt:
+alert "My number is higher"
+goto :guess_the_number
+
+win:
+alert "You won!"
+
+
+
+
 set $r0 <- 5
 set $r1 <- 6
 add $r2 <- $r0 + $r1
@@ -225,14 +251,14 @@ let docs = {
 		names: ["reg"],
 	},
 	save: {
-		title: "save $address $value. saves the value of $value to the address $address in ram.",
-		example: `set $r0 <- 1284\nset $r1 <- 562\nsave $r0 $r1\n# Now, when loading 1284, the number 562 will be there.`,
+		title: "save $address <- $value. saves the value of $value to the address $address in ram.",
+		example: `set $r0 <- 1284\nset $r1 <- 562\nsave $r0 $r1\n# Now, when loading 1284, the number 562 will be there.\nload $r0 $r2`,
 		hl: ["reg", "reg"],
 		names: ["addr", "inv"],
 	},
 	load: {
 		title: "load $address $value. saves the value of $value to the address $address in ram.",
-		example: `set $r0 <- 1284\nset $r1 <- 562\nsave $r0 $r1\n# Now, when loading 1284, the number 562 will be there.`,
+		example: `set $r0 <- 1284\nset $r1 <- 562\nsave $r0 $r1\n# Now, when loading 1284, the number 562 will be there.\nload $r0 $r2`,
 		hl: ["reg", "reg"],
 		names: ["addr", "out"],
 	}
